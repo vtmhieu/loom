@@ -90,32 +90,22 @@ def _summarize(
                 parts=[types.Part(text=f"{_SUMMARY_PROMPT}\n\n---\n\n{history_text}")],
             )
         ],
-        # No tools — this is a pure summarization call.
-        config=types.GenerateContentConfig(max_output_tokens=2048),
     )
-    return response.text or "[summary unavailable]"
+    return response.text
 
 
 def _format_history(messages: list[types.Content]) -> str:
-    """Render Content objects as readable text for the summarization prompt.
-
-    Tool results are truncated — the summary prompt doesn't need full bash
-    output, just the gist of what happened.
-    """
+    """Format messages into a readable string for the summarizer."""
     lines = []
     for msg in messages:
-        role = msg.role.upper()
+        role = msg.role
+        text = ""
         for part in msg.parts:
             if part.text:
-                lines.append(f"{role}: {part.text}")
+                text += part.text
             elif part.function_call:
-                args = dict(part.function_call.args)
-                lines.append(f"{role} [tool_call]: {part.function_call.name}({args})")
+                text += f"[Tool Call: {part.function_call.name}]"
             elif part.function_response:
-                result = part.function_response.response.get("result", "")
-                if len(result) > 500:
-                    result = result[:500] + "…[truncated]"
-                lines.append(
-                    f"{role} [tool_result]: {part.function_response.name} → {result}"
-                )
+                text += "[Tool Result]"
+        lines.append(f"{role.upper()}: {text}")
     return "\n\n".join(lines)

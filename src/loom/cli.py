@@ -9,10 +9,10 @@ console = Console()
 
 
 @click.command()
-@click.version_option(version="0.1.0")
+@click.version_option(version="0.1.1")
 @click.option(
     "--model",
-    default="gemini-3.1-flash-lite",
+    default="gemini-2.0-flash-lite",
     show_default=True,
     help="Gemini model to use.",
 )

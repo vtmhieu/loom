@@ -43,7 +43,6 @@ You have four tools: bash, read_file, write_file, str_replace.
 
 # Context window sizes in tokens, per model.
 CONTEXT_WINDOWS: dict[str, int] = {
-    "gemini-3.1-flash-lite": 1_048_576,
     "gemini-2.0-flash-lite": 1_048_576,
     "gemini-2.0-flash":      1_048_576,
     "gemini-2.5-flash":      1_048_576,
