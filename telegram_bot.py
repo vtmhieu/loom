@@ -11,7 +11,7 @@ import urllib.request
 from google import genai
 from google.genai import types
 
-TELEGRAM_TOKEN = "8923889673:AAGdahyVrZq2brGIKiAzJrmbFcsQjqj0umI"
+TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 CHAT_ID = 1701296613
 REPO = "vtmhieu/loom"
 

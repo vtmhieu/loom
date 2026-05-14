@@ -33,5 +33,6 @@ jobs:
       - name: Run bot
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: uv run python telegram_bot.py
