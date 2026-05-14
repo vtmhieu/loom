@@ -9,6 +9,7 @@ console = Console()
 
 
 @click.command()
+@click.version_option(version="0.1.0")
 @click.option(
     "--model",
     default="gemini-3.1-flash-lite",
