@@ -12,3 +12,9 @@ class TestTools(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_ls_files(self):
+        from loom.tools import _ls_files
+        # Since we are in the root, it should list at least README.md
+        output = _ls_files(".")
+        self.assertIn("README.md", output)

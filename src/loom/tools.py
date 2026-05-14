@@ -90,30 +90,19 @@ def _str_replace(path: str, old_string: str, new_string: str) -> str:
     return f"[replaced {old_lines} line(s) with {new_lines} line(s) in {path}]"
 
 
-# Maps tool name → callable that takes the args dict and returns a string.
-REGISTRY: dict[str, callable] = {
-    "bash": lambda args: _bash(args["command"]),
-    "read_file": lambda args: _read_file(args["path"]),
-    "write_file": lambda args: _write_file(args["path"], args["content"]),
-    "str_replace": lambda args: _str_replace(
-        args["path"], args["old_string"], args["new_string"]
-    ),
-}
-
-
-def dispatch(name: str, args: dict) -> str:
-    """Execute a tool by name. Always returns a string — never raises."""
-    if name not in REGISTRY:
-        return f"[error: unknown tool '{name}']"
+def _ls_files(path: str = ".") -> str:
+    """List files in the current working directory recursively."""
     try:
-        return REGISTRY[name](args)
+        # Use a safe implementation
+        files = []
+        for root, _, filenames in os.walk(path):
+            for filename in filenames:
+                files.append(os.path.join(root, filename))
+        return "\n".join(files) if files else "[no files found]"
     except Exception as e:
         return f"[error: {e}]"
 
 
-# The declarations sent to Gemini so the model knows what tools exist
-# and how to call them. Description quality matters: vague descriptions
-# produce wrong or hesitant tool calls.
 DECLARATIONS = types.Tool(
     function_declarations=[
         types.FunctionDeclaration(
@@ -128,46 +117,39 @@ DECLARATIONS = types.Tool(
                 properties={
                     "command": types.Schema(
                         type=types.Type.STRING,
-                        description="The shell command to execute.",
-                    )
+                        description="The shell command to run.",
+                    ),
                 },
                 required=["command"],
             ),
         ),
         types.FunctionDeclaration(
             name="read_file",
-            description=(
-                "Read the full contents of a file. "
-                "Use this before editing to see the current state."
-            ),
+            description="Read the contents of a file.",
             parameters=types.Schema(
                 type=types.Type.OBJECT,
                 properties={
                     "path": types.Schema(
                         type=types.Type.STRING,
-                        description="Path to the file, relative or absolute.",
-                    )
+                        description="The path of the file to read.",
+                    ),
                 },
                 required=["path"],
             ),
         ),
         types.FunctionDeclaration(
             name="write_file",
-            description=(
-                "Write content to a file, replacing it entirely. "
-                "Use for creating new files. "
-                "For editing existing files, prefer str_replace to avoid rewriting unchanged code."
-            ),
+            description="Create or overwrite a file with the given content.",
             parameters=types.Schema(
                 type=types.Type.OBJECT,
                 properties={
                     "path": types.Schema(
                         type=types.Type.STRING,
-                        description="Path to write, relative or absolute. Parent directories are created automatically.",
+                        description="The path of the file to write.",
                     ),
                     "content": types.Schema(
                         type=types.Type.STRING,
-                        description="The full content to write.",
+                        description="The full content to write to the file.",
                     ),
                 },
                 required=["path", "content"],
@@ -176,30 +158,56 @@ DECLARATIONS = types.Tool(
         types.FunctionDeclaration(
             name="str_replace",
             description=(
-                "Replace an exact string in a file with new content. "
-                "old_string must appear exactly once — if it appears zero times, "
-                "check for whitespace differences; if more than once, add more "
-                "surrounding lines to make it unique. "
-                "Always read_file first to get the exact current content."
+                "Replace an exact unique string in a file. "
+                "old_string must match exactly (including indentation/whitespace)."
             ),
             parameters=types.Schema(
                 type=types.Type.OBJECT,
                 properties={
                     "path": types.Schema(
                         type=types.Type.STRING,
-                        description="Path to the file to edit.",
+                        description="The path of the file to edit.",
                     ),
                     "old_string": types.Schema(
                         type=types.Type.STRING,
-                        description="The exact string to replace. Must appear exactly once in the file.",
+                        description="The exact string to find and replace.",
                     ),
                     "new_string": types.Schema(
                         type=types.Type.STRING,
-                        description="The string to replace it with.",
+                        description="The string to replace old_string with.",
                     ),
                 },
                 required=["path", "old_string", "new_string"],
             ),
         ),
+        types.FunctionDeclaration(
+            name="ls_files",
+            description="List files in the current working directory recursively.",
+            parameters=types.Schema(
+                type=types.Type.OBJECT,
+                properties={
+                    "path": types.Schema(
+                        type=types.Type.STRING,
+                        description="The directory path to list (default: .).",
+                    ),
+                },
+            ),
+        ),
     ]
 )
+
+REGISTRY: dict[str, callable] = {
+    "bash": lambda args: _bash(args["command"]),
+    "read_file": lambda args: _read_file(args["path"]),
+    "write_file": lambda args: _write_file(args["path"], args["content"]),
+    "str_replace": lambda args: _str_replace(
+        args["path"], args["old_string"], args["new_string"]
+    ),
+    "ls_files": lambda args: _ls_files(args.get("path", ".")),
+}
+
+
+def dispatch(name: str, args: dict) -> str:
+    if name not in REGISTRY:
+        return f"[error: unknown tool: {name}]"
+    return REGISTRY[name](args)
