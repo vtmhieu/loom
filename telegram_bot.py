@@ -88,7 +88,7 @@ def handle(user_text: str) -> str:
 
     while True:
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-3.1-flash-lite",
             contents=messages,
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM,
