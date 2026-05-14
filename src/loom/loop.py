@@ -365,6 +365,7 @@ def chat(
             types.Content(role="user", parts=[types.Part(text=user_input)])
         )
 
+        start = time.perf_counter()
         try:
             reply, prompt_tokens = run_turn(client, messages, model, max_tokens)
         except RuntimeError as e:
@@ -373,8 +374,10 @@ def chat(
                 messages.pop()
             continue
 
+        elapsed = time.perf_counter() - start
         # Text was already streamed to stdout inside run_turn.
         # Just add a blank line for spacing.
+        console.print(f"  [dim]elapsed {elapsed:.1f}s[/dim]")
         console.print()
 
         if prompt_tokens / ctx_window >= compact_threshold:
