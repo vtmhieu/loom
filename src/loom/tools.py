@@ -6,8 +6,6 @@ MAX_OUTPUT_CHARS = 10_000
 
 
 def _truncate(text: str) -> str:
-    """Keep head and tail when truncating — errors are at the end of compiler
-    output, so we can't just keep the head."""
     if len(text) <= MAX_OUTPUT_CHARS:
         return text
     half = MAX_OUTPUT_CHARS // 2
@@ -52,8 +50,6 @@ def _read_file(path: str) -> str:
 
 
 def _write_file(path: str, content: str) -> str:
-    # Create intermediate directories so the model can create files in new
-    # subdirectories without a separate mkdir step.
     parent = os.path.dirname(os.path.abspath(path))
     os.makedirs(parent, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
@@ -90,7 +86,24 @@ def _str_replace(path: str, old_string: str, new_string: str) -> str:
     return f"[replaced {old_lines} line(s) with {new_lines} line(s) in {path}]"
 
 
-# Maps tool name → callable that takes the args dict and returns a string.
+def _grep(pattern: str, path: str = ".") -> str:
+    try:
+        result = subprocess.run(
+            ["grep", "-rnI", pattern, path],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode == 0:
+            return _truncate(result.stdout)
+        elif result.returncode == 1:
+            return f"[no results found for '{pattern}']"
+        else:
+            return f"[grep error: {result.stderr}]"
+    except Exception as e:
+        return f"[error: {e}]"
+
+
 REGISTRY: dict[str, callable] = {
     "bash": lambda args: _bash(args["command"]),
     "read_file": lambda args: _read_file(args["path"]),
@@ -98,11 +111,11 @@ REGISTRY: dict[str, callable] = {
     "str_replace": lambda args: _str_replace(
         args["path"], args["old_string"], args["new_string"]
     ),
+    "grep": lambda args: _grep(args["pattern"], args.get("path", ".")),
 }
 
 
 def dispatch(name: str, args: dict) -> str:
-    """Execute a tool by name. Always returns a string — never raises."""
     if name not in REGISTRY:
         return f"[error: unknown tool '{name}']"
     try:
@@ -111,9 +124,6 @@ def dispatch(name: str, args: dict) -> str:
         return f"[error: {e}]"
 
 
-# The declarations sent to Gemini so the model knows what tools exist
-# and how to call them. Description quality matters: vague descriptions
-# produce wrong or hesitant tool calls.
 DECLARATIONS = types.Tool(
     function_declarations=[
         types.FunctionDeclaration(
@@ -154,20 +164,19 @@ DECLARATIONS = types.Tool(
         types.FunctionDeclaration(
             name="write_file",
             description=(
-                "Write content to a file, replacing it entirely. "
-                "Use for creating new files. "
-                "For editing existing files, prefer str_replace to avoid rewriting unchanged code."
+                "Create or overwrite a file. "
+                "Creates parent directories automatically."
             ),
             parameters=types.Schema(
                 type=types.Type.OBJECT,
                 properties={
                     "path": types.Schema(
                         type=types.Type.STRING,
-                        description="Path to write, relative or absolute. Parent directories are created automatically.",
+                        description="Path to the file.",
                     ),
                     "content": types.Schema(
                         type=types.Type.STRING,
-                        description="The full content to write.",
+                        description="The full content of the file.",
                     ),
                 },
                 required=["path", "content"],
@@ -176,29 +185,46 @@ DECLARATIONS = types.Tool(
         types.FunctionDeclaration(
             name="str_replace",
             description=(
-                "Replace an exact string in a file with new content. "
-                "old_string must appear exactly once — if it appears zero times, "
-                "check for whitespace differences; if more than once, add more "
-                "surrounding lines to make it unique. "
-                "Always read_file first to get the exact current content."
+                "Replace an exact unique string in a file. "
+                "old_string must appear exactly once."
             ),
             parameters=types.Schema(
                 type=types.Type.OBJECT,
                 properties={
                     "path": types.Schema(
                         type=types.Type.STRING,
-                        description="Path to the file to edit.",
+                        description="Path to the file.",
                     ),
                     "old_string": types.Schema(
                         type=types.Type.STRING,
-                        description="The exact string to replace. Must appear exactly once in the file.",
+                        description="The string to replace.",
                     ),
                     "new_string": types.Schema(
                         type=types.Type.STRING,
-                        description="The string to replace it with.",
+                        description="The replacement string.",
                     ),
                 },
                 required=["path", "old_string", "new_string"],
+            ),
+        ),
+        types.FunctionDeclaration(
+            name="grep",
+            description=(
+                "Search for a pattern in files recursively."
+            ),
+            parameters=types.Schema(
+                type=types.Type.OBJECT,
+                properties={
+                    "pattern": types.Schema(
+                        type=types.Type.STRING,
+                        description="The grep pattern.",
+                    ),
+                    "path": types.Schema(
+                        type=types.Type.STRING,
+                        description="The directory or file to search. Defaults to '.'",
+                    ),
+                },
+                required=["pattern"],
             ),
         ),
     ]
